@@ -1,0 +1,24 @@
+name: PageDewarp
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - notebook
+  - jupyterlab
+  - ipykernel
+  - numpy
+  - pandas
+  - matplotlib
+  - opencv
+  - pillow
+  - pip:
+      - torch==2.2.2+cu128
+      - torchvision==0.17.2+cu128
+      - torchaudio==2.2.2+cu128
+      - --extra-index-url https://download.pytorch.org/whl/cu128
+      - transformers
+      - datasets
+      - pytesseract
+      - scikit-image
