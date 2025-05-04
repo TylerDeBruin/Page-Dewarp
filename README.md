@@ -7,3 +7,6 @@
     - Set directory to the root, execute:
         - conda env create -f environment.yml
         - conda activate PageDewarp
+
+### References:
+    - Adam W Harley, Alex Ufkes, & Konstantinos G Derpanis 2015. Evaluation of Deep Convolutional Nets for Document Image Classification and Retrieval. https://huggingface.co/datasets/aharley/rvl_cdip 
