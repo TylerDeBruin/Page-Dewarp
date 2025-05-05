@@ -10,7 +10,7 @@
 
 ### Synthetic Data Generation:
 
-Utilizing the Harey 2015 dataset, and Blender for a 3d Environment, I have created synthetic data by importing each of the images and snapping shotting intermediate frames of a translation that allow the creation of unique perspective warps.
+Utilizing the Harey 2015 dataset, and Blender for a 3d Environment, I created the synthetic data by importing each of the images and snapping shotting intermediate frames of a translation that allow the creation of unique perspective warps.
 
 ![Demo animation](/Documentation/demo.gif)
 
@@ -30,4 +30,4 @@ Showcasing the Image Generation:
 
 
 ### References:
-    - Adam W Harley, Alex Ufkes, & Konstantinos G Derpanis 2015. Evaluation of Deep Convolutional Nets for Document Image Classification and Retrieval. https://huggingface.co/datasets/aharley/rvl_cdip 
+    - Adam W Harley, Alex Ufkes, & Konstantinos G Derpanis 2015. Evaluation of Deep Convolutional Nets for Document Image Classification and Retrieval. https://huggingface.co/datasets/aharley/rvl_cdip https://github.com/TylerDeBruin/Page-Dewarp
