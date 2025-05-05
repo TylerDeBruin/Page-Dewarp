@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-SyntheticData/
+SyntheticData/Data/
 
 # Distribution / packaging
 .eggs/
