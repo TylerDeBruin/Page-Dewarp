@@ -335,7 +335,7 @@ def process_tif_file(image_path, output_root_dir, partial_root_start="images"):
     
     # Strip extension and keep just filename
     file_stem = os.path.splitext(os.path.basename(image_path))[0]
-    render_animation_frames(output_dir=output_dir, file_prefix=f"{file_stem}", start=0, end=120, interval=10)
+    render_animation_frames(output_dir=output_dir, file_prefix=f"{file_stem}", start=0, end=120, interval=1)
     
     append_checkpoint(
         output_root_dir=output_root_dir,
@@ -343,7 +343,7 @@ def process_tif_file(image_path, output_root_dir, partial_root_start="images"):
         file_stem=file_stem,
         frame_start=0,
         frame_end=120,
-        frame_interval=10
+        frame_interval=1
     )
     
 
