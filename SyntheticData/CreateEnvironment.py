@@ -336,7 +336,16 @@ def process_tif_file(image_path, output_root_dir, partial_root_start="images"):
     # Strip extension and keep just filename
     file_stem = os.path.splitext(os.path.basename(image_path))[0]
     render_animation_frames(output_dir=output_dir, file_prefix=f"{file_stem}", start=0, end=120, interval=10)
-
+    
+    append_checkpoint(
+        output_root_dir=output_root_dir,
+        image_path=relative_subdir,
+        file_stem=file_stem,
+        frame_start=0,
+        frame_end=120,
+        frame_interval=10
+    )
+    
 
 def find_and_process_tifs(input_root_dir, output_root_dir, partial_root_start="images", total = None):
     totalProcessed = 0
@@ -360,6 +369,15 @@ def set_black_background():
     if background_node:
         background_node.inputs[0].default_value = (0.0, 0.0, 0.0, 1.0)  # RGBA for black
 
+def append_checkpoint(output_root_dir, image_path, file_stem, frame_start, frame_end, frame_interval):
+    log_path = os.path.join(output_root_dir, "render_checkpoint_log.csv")
+    
+    rendered_files = [f"{file_stem}_{frame:04d}.png" for frame in range(frame_start, frame_end + 1, frame_interval)]
+    line = ', '.join([image_path] + rendered_files) + '\n'
+    
+    with open(log_path, "a") as f:
+        f.write(line)
+        
 # === Execution Parameters ===
 
 input_root = r"D:/Public/Page-Dewarp/SyntheticData/Data/rvl_cdip_raw/images"
