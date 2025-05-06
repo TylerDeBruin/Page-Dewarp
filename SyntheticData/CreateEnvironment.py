@@ -79,13 +79,17 @@ def add_3d_paper_noise(plane, strength=0.25, noise_scale=2.0):
     displace.strength = strength * random.uniform(0.8, 1.2)
     displace.mid_level = 0.5 + random.uniform(-0.1, 0.1)
     
+
 def create_image(image_path: str):
     # Load image
     image = bpy.data.images.load(image_path)
     image.use_fake_user = True
     image.colorspace_settings.name = 'sRGB'
     image.alpha_mode = 'STRAIGHT'
-
+    image.use_view_as_render = True
+    image.use_generated_float = True
+    image.generated_width = image.size[0]
+    image.generated_height = image.size[1]
 
     # Create a plane at origin
     bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 0, 0))
@@ -97,7 +101,7 @@ def create_image(image_path: str):
     plane.scale.x = aspect_ratio
     plane.scale.y = 1.0
 
-    # Create material with image texture
+    # Create material
     material = bpy.data.materials.new(name="ImageMaterial")
     material.use_nodes = True
     nodes = material.node_tree.nodes
@@ -107,25 +111,33 @@ def create_image(image_path: str):
     for node in nodes:
         nodes.remove(node)
 
-    # Create shader nodes
+    # Create basic shader setup with image
     output_node = nodes.new(type='ShaderNodeOutputMaterial')
     shader_node = nodes.new(type='ShaderNodeBsdfPrincipled')
     texture_node = nodes.new(type='ShaderNodeTexImage')
 
-    # Assign and configure texture
+    # Configure texture
     texture_node.image = image
-    texture_node.interpolation = 'Cubic'   # Use 'Closest' if absolute pixel sharpness is needed
-    texture_node.extension = 'CLIP'        # Prevent tiling artifacts
-    texture_node.projection = 'FLAT'
+    texture_node.interpolation = 'Closest'  # For sharpness (use 'Cubic' for smoother text if preferred)
+    texture_node.extension = 'CLIP'
 
-    # Link nodes
+    # Link image directly to base color
     links.new(texture_node.outputs["Color"], shader_node.inputs["Base Color"])
     links.new(shader_node.outputs["BSDF"], output_node.inputs["Surface"])
 
     # Assign material to plane
     plane.data.materials.append(material)
 
+    # OPTIONAL: Set 3D viewport to rendered view for full resolution preview
+    for area in bpy.context.screen.areas:
+        if area.type == 'VIEW_3D':
+            for space in area.spaces:
+                if space.type == 'VIEW_3D':
+                    space.shading.type = 'RENDERED'
+
     return plane
+
+
 
 
 def match_camera_to_mesh_aspect(camera, mesh_obj):
@@ -149,7 +161,11 @@ def create_camera_facing_object(target_obj, distance=1.5):
     bpy.context.scene.camera = camera
 
     # === Add Random Light ===
-    light_types = ['POINT', 'SUN', 'AREA']
+    light_types = [
+    'POINT', 
+    'SUN', 
+    'AREA'
+    ]
     light_type = random.choice(light_types)
 
     bpy.ops.object.light_add(type=light_type)
@@ -160,7 +176,7 @@ def create_camera_facing_object(target_obj, distance=1.5):
     light.location = target_location + mathutils.Vector((
         random.uniform(-2, 2),
         random.uniform(-2, 2),
-        random.uniform(2.0, 5.0)
+        random.uniform(4.0, 10.0)
     ))
 
     # === Randomize light energy (brightness) by type
@@ -265,7 +281,9 @@ def animate_camera_pan_from_current(
             camera.keyframe_insert(data_path="rotation_euler", frame=frame)
 
 
-def render_animation_frames(output_dir, start=0, end=120, interval=5, file_prefix="render"):
+# === Utility Functions ===
+
+def render_animation_frames(output_dir, file_prefix="render", start=0, end=120, interval=5):
     scene = bpy.context.scene
     original_path = scene.render.filepath
 
@@ -276,39 +294,76 @@ def render_animation_frames(output_dir, start=0, end=120, interval=5, file_prefi
         scene.render.filepath = os.path.join(output_dir, f"{file_prefix}_{frame:04d}.png")
         bpy.ops.render.render(write_still=True)
 
-    # Restore the original filepath
     scene.render.filepath = original_path
+
+
+def process_tif_file(image_path, output_root_dir, partial_root_start="images"):
+    clear_scene()
+    set_black_background()
     
+    image_plane = create_image(image_path)
+    add_jagged_edges(image_plane)
+    add_3d_paper_noise(image_plane, strength=0.05, noise_scale=1.0)
 
-# === Main Execution ===
+    camera = create_camera_facing_object(image_plane)
+    match_camera_to_mesh_aspect(camera, image_plane)
+    set_viewport_to_camera(camera)
 
-image_path = r"PATHHERE"
+    for window in bpy.context.window_manager.windows:
+        for area in window.screen.areas:
+            if area.type == 'VIEW_3D':
+                for space in area.spaces:
+                    if space.type == 'VIEW_3D':
+                        space.overlay.show_floor = False
+                        space.overlay.show_axis_x = False
+                        space.overlay.show_axis_y = False
+                        space.overlay.show_cursor = False
+                        space.shading.show_xray = False
+                        space.overlay.show_overlays = False
 
-clear_scene()
+    animate_camera_pan_from_current(camera)
 
-image_plane = create_image(image_path)
-add_jagged_edges(image_plane)
-add_3d_paper_noise(image_plane, strength=0.05, noise_scale=1.0)
+    # === Determine relative folder structure ===
+    path_parts = os.path.normpath(image_path).split(os.sep)
+    try:
+        idx = path_parts.index(partial_root_start)
+    except ValueError:
+        raise ValueError(f"'{partial_root_start}' not found in path: {image_path}")
+    
+    relative_subdir = os.path.join(*path_parts[idx:-1])  # skip filename, keep folders from 'images' on
+    output_dir = os.path.join(output_root_dir, relative_subdir)
+    
+    # Strip extension and keep just filename
+    file_stem = os.path.splitext(os.path.basename(image_path))[0]
+    render_animation_frames(output_dir=output_dir, file_prefix=f"{file_stem}", start=0, end=120, interval=10)
 
-camera = create_camera_facing_object(image_plane)
-match_camera_to_mesh_aspect(camera, image_plane)
-set_viewport_to_camera(camera)
 
+def find_and_process_tifs(input_root_dir, output_root_dir, partial_root_start="images", total = None):
+    totalProcessed = 0
+    for root, dirs, files in os.walk(input_root_dir):
+        for file in files:
+            if file.lower().endswith('.tif'):
+                image_path = os.path.join(root, file)
+                process_tif_file(image_path, output_root_dir, partial_root_start)
+                totalProcessed+=1
+                if total is not None and totalProcessed >= total:
+                    return  # Only process first .tif file found
 
-for window in bpy.context.window_manager.windows:
-    for area in window.screen.areas:
-        if area.type == 'VIEW_3D':
-            for space in area.spaces:
-                if space.type == 'VIEW_3D':
-                    space.overlay.show_floor = False
-                    space.overlay.show_axis_x = False
-                    space.overlay.show_axis_y = False
-                    space.overlay.show_cursor = False
-                    space.shading.show_xray = False
-                    space.overlay.show_overlays = False
-                    
-                    
-# Animate into aligned top-down position
-animate_camera_pan_from_current(camera)
+def set_black_background():
+    # Get the World node tree
+    world = bpy.context.scene.world
+    world.use_nodes = True
+    nodes = world.node_tree.nodes
 
-render_animation_frames(output_dir=r"PATHHERE",start=0,end=120,interval=10,file_prefix="pan_sample")
+    # Set background color to black
+    background_node = nodes.get("Background")
+    if background_node:
+        background_node.inputs[0].default_value = (0.0, 0.0, 0.0, 1.0)  # RGBA for black
+
+# === Execution Parameters ===
+
+input_root = r"D:/Public/Page-Dewarp/SyntheticData/Data/rvl_cdip_raw/images"
+output_root = r"F:/SyntheticData/Output"
+partial_structure_root = "images"
+
+find_and_process_tifs(input_root, output_root, partial_structure_root)
