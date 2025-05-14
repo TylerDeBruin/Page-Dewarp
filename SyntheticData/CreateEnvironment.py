@@ -2,6 +2,7 @@ import mathutils
 import math
 import random
 import os
+import csv
 import bpy
 import bmesh
 
@@ -347,17 +348,29 @@ def process_tif_file(image_path, output_root_dir, partial_root_start="images"):
     )
     
 
-def find_and_process_tifs(input_root_dir, output_root_dir, partial_root_start="images", total = None):
+
+def find_and_process_tifs(input_root_dir, output_root_dir, partial_root_start="images", total=None):
     totalProcessed = 0
+    checkpoint_path = get_checkpoint_path(os.path.join(input_root_dir, "render_checkpoint_log.csv"))
+    checkpoint_reached = checkpoint_path is None  # If no checkpoint, start from the beginning
+
     for root, dirs, files in os.walk(input_root_dir):
+        if not checkpoint_reached:
+            # Skip until we reach the checkpoint folder
+            if os.path.normpath(root).endswith(os.path.normpath(checkpoint_path)):
+                checkpoint_reached = True
+            else:
+                continue
+
         for file in files:
             if file.lower().endswith('.tif'):
                 image_path = os.path.join(root, file)
                 process_tif_file(image_path, output_root_dir, partial_root_start)
-                totalProcessed+=1
-                if total is not None and totalProcessed >= total:
-                    return  # Only process first .tif file found
+                totalProcessed += 1
 
+                if total is not None and totalProcessed >= total:
+                    return  # Only process up to 'total' .tif files
+                
 def set_black_background():
     # Get the World node tree
     world = bpy.context.scene.world
@@ -377,7 +390,21 @@ def append_checkpoint(output_root_dir, image_path, file_stem, frame_start, frame
     
     with open(log_path, "a") as f:
         f.write(line)
-        
+
+def get_checkpoint_path(log_path):
+    """Reads the last non-empty line from the CSV log and returns the first column (checkpoint path)."""
+    if not os.path.exists(log_path):
+        return None
+
+    with open(log_path, 'r', newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        lines = [row for row in reader if row]
+        if not lines:
+            return None
+        return lines[-1][0]  # Return first column of the last line
+
+
+
 # === Execution Parameters ===
 
 input_root = r"D:/Public/Page-Dewarp/SyntheticData/Data/rvl_cdip_raw/images"
