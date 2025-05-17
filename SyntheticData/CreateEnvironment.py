@@ -351,7 +351,7 @@ def process_tif_file(image_path, output_root_dir, partial_root_start="images"):
 
 def find_and_process_tifs(input_root_dir, output_root_dir, partial_root_start="images", total=None):
     totalProcessed = 0
-    checkpoint_path = get_checkpoint_path(os.path.join(input_root_dir, "render_checkpoint_log.csv"))
+    checkpoint_path = get_checkpoint_path(os.path.join(output_root_dir, "render_checkpoint_log.csv"))
     checkpoint_reached = checkpoint_path is None  # If no checkpoint, start from the beginning
 
     for root, dirs, files in os.walk(input_root_dir):
@@ -407,7 +407,7 @@ def get_checkpoint_path(log_path):
 
 # === Execution Parameters ===
 
-input_root = r"D:/Public/Page-Dewarp/SyntheticData/Data/rvl_cdip_raw/images"
+input_root = r"G:/Public/Page-Dewarp/SyntheticData/Data/rvl_cdip_raw/images"
 output_root = r"F:/SyntheticData/Output"
 partial_structure_root = "images"
 
