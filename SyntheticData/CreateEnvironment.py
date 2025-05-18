@@ -7,40 +7,26 @@ import bpy
 import bmesh
 
 def add_jagged_edges(plane, edge_displace_strength=0.05, edge_noise_scale=10.0):
-
-    bpy.context.view_layer.objects.active = plane
-
-    # === Subdivide first
-    bpy.ops.object.mode_set(mode='EDIT')
-    bm = bmesh.from_edit_mesh(plane.data)
+    bm = bmesh.new()
+    bm.from_mesh(plane.data)
     bmesh.ops.subdivide_edges(bm, edges=bm.edges, cuts=50, use_grid_fill=True)
-    bmesh.update_edit_mesh(plane.data)
-    bpy.ops.object.mode_set(mode='OBJECT')
+    bm.to_mesh(plane.data)
+    bm.free()
 
-    # === Create vertex group for boundary only
     vg = plane.vertex_groups.new(name="EdgeOnly")
     bm = bmesh.new()
     bm.from_mesh(plane.data)
 
-    boundary_verts = set()
-    for edge in bm.edges:
-        if len(edge.link_faces) == 1:  # border edge
-            boundary_verts.add(edge.verts[0].index)
-            boundary_verts.add(edge.verts[1].index)
-
+    boundary_verts = {v.index for e in bm.edges if len(e.link_faces) == 1 for v in e.verts}
     bm.free()
 
-    for i, v in enumerate(plane.data.vertices):
-        if i in boundary_verts:
-            vg.add([i], 1.0, 'REPLACE')
+    vg.add(list(boundary_verts), 1.0, 'REPLACE')
 
-    # === Add noise texture
     tex = bpy.data.textures.new(name=f"TearTex_{random.randint(0, 9999)}", type='CLOUDS')
     tex.noise_scale = edge_noise_scale
     tex.noise_depth = 1
     tex.intensity = 1.0
 
-    # === Add Displace modifier for jagged edges
     mod = plane.modifiers.new(name="JaggedEdge", type='DISPLACE')
     mod.texture = tex
     mod.texture_coords = 'LOCAL'
@@ -49,37 +35,32 @@ def add_jagged_edges(plane, edge_displace_strength=0.05, edge_noise_scale=10.0):
     mod.direction = 'NORMAL'
 
 def add_3d_paper_noise(plane, strength=0.25, noise_scale=2.0):
-    bpy.context.view_layer.objects.active = plane
+    bm = bmesh.new()
+    bm.from_mesh(plane.data)
+    bmesh.ops.subdivide_edges(bm, edges=bm.edges, cuts=50)
+    bm.to_mesh(plane.data)
+    bm.free()
 
-    # Subdivide for deformation
-    bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.mesh.subdivide(number_cuts=50)
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-    # Create new texture
     texture = bpy.data.textures.new(name=f"CreaseTex_{random.randint(0,9999)}", type='CLOUDS')
     texture.noise_scale = noise_scale
     texture.noise_depth = 2
     texture.intensity = 1.0
     texture.noise_type = 'HARD_NOISE'
 
-    # Create empty object to randomize displacement coordinates
-    bpy.ops.object.empty_add(type='PLAIN_AXES', location=(
+    empty = bpy.data.objects.new(f"NoiseSeed_{random.randint(0,9999)}", None)
+    empty.location = (
         random.uniform(-10, 10),
         random.uniform(-10, 10),
         random.uniform(-10, 10)
-    ))
-    empty = bpy.context.object
-    empty.name = f"NoiseSeed_{random.randint(0,9999)}"
+    )
+    bpy.context.collection.objects.link(empty)
 
-    # Displace modifier
     displace = plane.modifiers.new(name="PaperWarp", type='DISPLACE')
     displace.texture = texture
     displace.texture_coords = 'OBJECT'
     displace.texture_coords_object = empty
     displace.strength = strength * random.uniform(0.8, 1.2)
     displace.mid_level = 0.5 + random.uniform(-0.1, 0.1)
-    
 
 def create_image(image_path: str):
     # Load image
@@ -213,19 +194,35 @@ def set_viewport_to_camera(camera):
                         return
 
 def clear_scene():
+    # Delete all objects
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.object.delete(use_global=False)
 
-    for block in bpy.data.meshes:
-        bpy.data.meshes.remove(block)
-    for block in bpy.data.materials:
-        bpy.data.materials.remove(block)
-    for block in bpy.data.images:
-        bpy.data.images.remove(block)
-    for block in bpy.data.cameras:
-        bpy.data.cameras.remove(block)
-    for block in bpy.data.lights:
-        bpy.data.lights.remove(block)
+    # Clear orphaned data
+    for datablock in [bpy.data.meshes, bpy.data.materials, bpy.data.images,
+                      bpy.data.textures, bpy.data.lights, bpy.data.cameras, bpy.data.objects]:
+        for block in datablock:
+            if block.users == 0:
+                datablock.remove(block)
+
+    # === Reset World ===
+    if bpy.context.scene.world is None:
+        bpy.context.scene.world = bpy.data.worlds.new("World")
+
+    world = bpy.context.scene.world
+    world.use_nodes = True
+
+    ntree = world.node_tree
+    ntree.nodes.clear()
+
+    bg = ntree.nodes.new(type='ShaderNodeBackground')
+    output = ntree.nodes.new(type='ShaderNodeOutputWorld')
+    ntree.links.new(bg.outputs['Background'], output.inputs['Surface'])
+
+    bg.inputs[0].default_value = (0.0, 0.0, 0.0, 1.0)  # Set to black
+    bg.inputs[1].default_value = 1.0  # Strength
+
+    world.color = (0.0, 0.0, 0.0) 
 
 
 def animate_camera_pan_from_current(
@@ -406,6 +403,7 @@ def get_checkpoint_path(log_path):
 
 
 # === Execution Parameters ===
+
 
 input_root = r"G:/Public/Page-Dewarp/SyntheticData/Data/rvl_cdip_raw/images"
 output_root = r"F:/SyntheticData/Output"
